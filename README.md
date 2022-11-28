@@ -46,6 +46,7 @@ npm install
 ```bash
 npm run serve
 ```
+7) Go to your created telegram bot and send `/start`
 
 ## Donate for updates
 EVM: `0xac1c08185ba23b28ac0c723abbb93ab9dc00dead`

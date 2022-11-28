@@ -1,0 +1,5 @@
+BOT_TOKEN= create it in https://t.me/BotFather
+ADMIN_ID= use https://t.me/my_id_bot bot or analogs
+ANSWERS="https://docs.google.com/spreadsheets/d/1Dk4qG6d7kjeK_iFbmxJ8Z2gGQRHZ_lsgdqwLiUxXMlg/edit#gid=0"
+CLAIM_TIMEOUT=3000
+SHORT_TIMEOUT=500

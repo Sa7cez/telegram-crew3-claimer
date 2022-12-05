@@ -3,8 +3,8 @@
 The script allows you to manage multiple Crew3 accounts, using a telegram bot as a user interface.
 
 <div style="display:flex">
-  <img src="promo1.png" width="40%" style="border-radius: 15px; margin: 15px" alt="Promo 1" />
-  <img src="promo2.png" width="40%" style="border-radius: 15px; margin: 15px" alt="Promo 1" />
+  <img src="promo1.png" width="40%" style="max-height: 350px; border-radius: 15px; margin: 15px" alt="Promo 1" />
+  <img src="promo2.png" width="40%" style="max-height: 350px; border-radius: 15px; margin: 15px" alt="Promo 1" />
 </div>
 
 ## Implemented features
@@ -19,7 +19,27 @@ The script allows you to manage multiple Crew3 accounts, using a telegram bot as
 ## TODO list (maybe someday)
 1) Twitter auto-follow/retweet/reply/like functions
 2) Discord auto-join
-3) Open to your suggestions - https://t.me/Salcez
+3) Wallet generation and submit
+4) Deploy to server (bot webhook and pre-deploy helper)
+
+- Open to your suggestions - https://t.me/Salcez (Ru|En)
+
+## Changelog
+
+5 December updates:
+- Simple logging check of modules work and requirements.
+- Concat batch claiming. None, quiz, texts, telegram quest now claiming together.
+- Change account info message, add another wallets (SUI, Aptos, Starknet).
+- Now you can add empty accounts (without discord/twitter/email). They can be used in invitations for some easy communities.
+- Now after accept invite application account trying to take all the quests he can.
+- Accounts.csv format except ";" and "," separators. Format "address;privateKey".
+- Empty account filter in manage accounts list.
+- Now you can send EVM-address to bot and it will find the corresponding account.
+- Command "/new #end_page# #start_page#" - show new communities and it's requirements.
+- Add shuffle to claim and join processing
+- Autogenerate usernames for empty profiles
+- Crew3 Module has new functions for future updates: changeSettings, sendMagicLink
+- Some fixes
 
 ## Requirements
 1) Create telegram bot by `https://t.me/BotFather`
@@ -44,7 +64,7 @@ npm install
 ```
 6) Start
 ```bash
-npm run serve
+npm run start
 ```
 7) Go to your created telegram bot and send `/start`
 

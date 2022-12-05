@@ -331,18 +331,14 @@ bot.command('start', async (ctx) => main(ctx))
   })
   .action('all_accounts', async (ctx) => {
     if (ctx.session.accounts) {
-      let buttons = Object.values(ctx.session.accounts)
-        .filter(({ crew_user: account }: any) => account.accounts.length > 1)
-        .map(({ crew_user: account }: any) => [Key.callback(account.name || account.discordHandle || account.twitterUsername || 'Null', 'account_' + account.id)])
-      buttons.push([Key.callback('« Main menu', 'main')])
-      const accounts = Keyboard.make(buttons, {
-        pattern: [2, 1],
-        columns: 2,
-        wrap: () => true,
-        filter: () => true,
-        filterAfterBuild: false,
-        flat: true
-      }).inline({ parse_mode: 'Markdown'})
+      let buttons = [[ Key.callback('« Main menu', 'main') ], [ Key.callback('🌀 Claim Quests »', 'claim_none_socials') ]]
+      buttons = [ ...buttons, ...new Set(
+        Object.values(ctx.session.accounts)
+          .filter(({ crew_user: account }: any) => account.accounts.length > 1)
+          .map(({ crew_user: account }: any) => [Key.callback(account.name || account.discordHandle || account.twitterUsername || 'Null', 'account_' + account.id)])
+      ), [ Key.callback('« Back to main menu', 'main') ] ]
+      // @ts-ignore
+      const accounts = Keyboard.make(buttons, { columns: 2, flat: true }).inline({ parse_mode: 'Markdown'})
       ctx.reply(`*Choose account to view:*`, accounts)
     } else {
       ctx.reply(`You don't have accounts`, )
@@ -453,9 +449,12 @@ bot.command('start', async (ctx) => main(ctx))
     { parse_mode: 'Markdown' })
   })
   .action(/claim_([none|quiz|any]+)_(.+)/, async (ctx) => {
-    const ids = ctx.match[2] !== 'all'
-      ? [ ctx.match[2] ]
-      : Object.keys(ctx.session.accounts)
+    const ids = ctx.match[2] === 'all'
+      ? Object.keys(ctx.session.accounts)
+      : ctx.match[2] === 'socials'
+        ? Object.keys(Object.values(ctx.session.accounts).filter(({ crew_user: account }: any) => account.accounts.length > 1))
+        : [ ctx.match[2] ]
+
     const answers = await google.readAnswers()
     const type = ctx.match[1] === 'quiz'
       ? ['quiz', 'text']

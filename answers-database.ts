@@ -1,7 +1,7 @@
 import { GoogleSpreadsheet } from 'google-spreadsheet'
 import creds from './google.json'
 
-const URL = process.env.ANSWERS
+const URL = process.env.ANSWERS || 'https://docs.google.com/spreadsheets/d/1Dk4qG6d7kjeK_iFbmxJ8Z2gGQRHZ_lsgdqwLiUxXMlg/edit#gid=0'
 const googleRegex = /\/([\w-_]{15,})\/(.*?gid=(\d+))?/
 
 // Write quest answers to Google Spreadsheet
@@ -54,3 +54,14 @@ export const readAnswers = async (url = URL) => {
   }
   return answers
 }
+
+const checkConnection = async () => {
+  try {
+    const answers = await readAnswers()
+    console.log(`Google OK. Database communities: ${Object.keys(answers).join(' | ')}`)
+  } catch (e) {
+    console.log(`Google connection error! Please check provided URL visability or use default URL.`)
+  }
+}
+
+checkConnection()

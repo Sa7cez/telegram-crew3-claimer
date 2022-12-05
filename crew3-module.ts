@@ -2,6 +2,7 @@ import * as dotenv from "dotenv"
 import axios, { AxiosInstance } from 'axios'
 import FormData from 'form-data'
 import delay from 'delay'
+import { faker } from "@faker-js/faker"
 
 dotenv.config()
 
@@ -65,7 +66,6 @@ export class CrewProfile {
    * @returns invite url for given subdomain
    */
   joinByReferral = (subdomain: string, invite: string) => {
-    console.log(subdomain + ' ' + invite + '!')
     return axios.get(`https://${subdomain}.crew3.xyz/invite/${invite}`, { headers: this.headers })
       .then(async (r) =>
         this.crew3.post('users/me/accept-invitation', { invitationId: invite }, this.getHeaders(subdomain))
@@ -75,6 +75,21 @@ export class CrewProfile {
       )
       .catch(e => {
         return e?.response?.data?.message || `Wrong invite link`
+      })
+  }
+
+  /**
+   * @param subdomain of community
+   * @param email of user
+   * @returns mail status
+   */
+   sendMagicLink = (subdomain: string, email: string) => {
+    return this.crew3.post('authentification/email/magic-link', {
+      email: email,
+      subdomain: subdomain
+    }, this.getHeaders(subdomain))
+      .then(r => {
+        return `Successfully joined to community!`
       })
   }
 
@@ -189,7 +204,7 @@ Claimed XP: *${stats.xp}*` : ''}`}
   getHeaders = (subdomain) => ({ headers: {
     origin: `https://${subdomain}.crew3.xyz`,
     referer: `https://${subdomain}.crew3.xyz`,
-    cookie: this.headers.cookie.replace('root', subdomain)
+    cookie: this?.headers?.cookie?.replace('root', subdomain)
   }})
 
   /**
@@ -243,7 +258,7 @@ Claimed XP: *${stats.xp}*` : ''}`}
             ['quiz', 'text'].includes(note.events[0].valueType)
           )
         return ({
-          community: community.name,
+          community: community.name.replace(/[^a-zA-Z0-9 ]/, ''),
           answers: answers.map(answer => ({
             question: answer.title.trim(),
             answer: answer.events[0].value
@@ -282,7 +297,13 @@ Claimed XP: *${stats.xp}*` : ''}`}
   }
   
   // Get unlocked and available quests
-  getUnlockedQuests = (quests) => quests.filter((item) => item.unlocked && !item.inReview && item.canRetry && item.open)
+  getUnlockedQuests = (quests) => quests.filter((item) => item.unlocked && !item.inReview && item.open)
+
+  // Get invites quests
+  getInvitesQuests = (quests) => quests.filter((item) => item.submissionType === 'invites')
+
+  // Get quests which can give role
+  getRoleQuests = (quests) => quests.filter((item) => item?.reward[0]?.type === 'role' || item?.reward[1]?.type === 'role')
 
   // Get autovalidate quests
   getAutoValidateQuests = (quests) => quests.filter((item) => item.autoValidate)
@@ -420,6 +441,47 @@ Claimed XP: *${stats.xp}*` : ''}`}
   }
 
   /**
+   * Change user settings
+   * @param user - user data
+   * @param subdomain - community subdomain
+   * @param address - new ETH address
+   * @param blockchain - new blockchain address
+   * @param username - new username
+   * @returns boolean
+   */
+   changeSettings = async (subdomain, address = null, blockchain = 'etherium', username = null) => {
+    console.log(`\nTry to change settings ${subdomain}, ${address}, ${blockchain}, ${username}`)
+    const data = new FormData()
+
+    if (address) {
+      data.append("address", address)
+      data.append("blockchain", blockchain)
+    } else {
+      data.append("username", username || faker.internet.userName())
+      data.append("displayedInformation", '["discord", "twitter"]')
+    }
+    return await this.crew3.patch(`users/me`, data, this.getHeaders(subdomain))
+      .then(r => {
+        console.log(`New User data - ${r.data.name}`)
+        return r.data
+      })
+      .catch(async (e) => {
+        if (e?.response?.data?.message) {
+          console.log('e?.response?.data?.message')
+          return e?.response?.data?.message
+        } else if (e?.response?.data?.error) {
+          console.log('e?.response?.data?.error')
+          console.log(e?.response?.data)
+          return e?.response?.data?.error.message || e?.response?.data?.error?.follow || e?.response?.data?.error?.retweet || e?.response?.data?.error?.reply || e?.response?.data?.error?.like
+        } else {
+          console.log(e)
+        }
+        console.log(`Something wrong with changing ${subdomain}`)
+        return null
+      })
+  }
+
+  /**
    * Claim all quests by type
    * @param communities from API
    * @param answer form answers list, nessesary for text/quiz/url/image types of quests
@@ -432,12 +494,13 @@ Claimed XP: *${stats.xp}*` : ''}`}
       const all = await this.getAllQuests(community.subdomain)
       const unlocked = this.getUnlockedQuests(all)
       const quests = unlocked.filter(item => types.includes(item.submissionType))
+      const communityName = community.name.replace(/[^a-zA-Z0-9 ]/, '')
       if (quests.length > 0)
         report.push(`*${community.name}* \`${community.subdomain}\` (${quests.length} quests):`)
       for (const quest of quests) {
         let answer
-        if (['quiz', 'text', 'url', 'image'].includes(quest.submissionType) && answers[community.name]) {
-          answer = answers[community.name][quest.name.trim()]
+        if (['quiz', 'text', 'url', 'image'].includes(quest.submissionType) && answers[communityName]) {
+          answer = answers[communityName][quest.name.trim()]
           if (answer)
             report.push(' - ' + await this.claimQuest(community.subdomain, quest, answer ? answer : null))
         } else {

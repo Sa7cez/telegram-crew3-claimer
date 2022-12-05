@@ -14,6 +14,7 @@ import { Wallet } from '@ethersproject/wallet'
 import delay from 'delay'
 import axios from 'axios'
 import { HeaderGenerator } from 'header-generator'
+
 const headerGenerator = new HeaderGenerator({
   browserListQuery: 'last 5 chrome versions',
   operatingSystems: ['windows', 'macos', 'ios', 'android']
@@ -25,6 +26,14 @@ dotenv.config()
 const CLAIM_TIMEOUT = parseInt(process.env.CLAIM_TIMEOUT)
 const SHORT_TIMEOUT = parseInt(process.env.SHORT_TIMEOUT)
 const ADMIN = parseInt(process.env.ADMIN_ID)
+const BOT_TOKEN = process.env.BOT_TOKEN
+
+console.log(`\nCheck requirements:
+
+Admin: ${ADMIN}
+Claim timeout: ${CLAIM_TIMEOUT}
+Short timeout: ${SHORT_TIMEOUT}
+Bot token: ${!!BOT_TOKEN}\n`)
 
 // Ethers
 const provider = new JsonRpcProvider('goerli')
@@ -36,9 +45,10 @@ interface SessionData {
   accounts: {}
 }
 interface BotContext extends Context {
-  session?: SessionData
+session?: SessionData
 }
-export const bot = new Telegraf<BotContext>(process.env.BOT_TOKEN, { handlerTimeout: 90_000_000 })
+
+export const bot = new Telegraf<BotContext>(BOT_TOKEN, { handlerTimeout: 90_000_000 })
 
 // Bot middlewares
 bot
@@ -46,8 +56,9 @@ bot
   .use((new LocalSession({ database: 'sessions.json' })).middleware())
   // Block other users
   .use((ctx, next) => {
+    console.log('Sender chat_id: ', ctx.from.id)
     if (ctx.from.id !== ADMIN)
-      return ctx.reply('Access Denied!!!')
+      return ctx.reply('Access Denied!!!').catch(e => console.log('Access', e))
     if (!ctx.session.accounts)
       ctx.session.accounts = {}
     return next()
@@ -59,8 +70,9 @@ const mainKeyboard = (ctx: BotContext) => {
   return [
     [ Key.callback('🍪 Add Crew3 account(s) »', 'add_profile') ],
     [ Key.callback('📑 Manage all accounts »', 'all_accounts', hide) ],
-    [ Key.callback('🌀 Claim Daily/none quests »', 'claim_none_all', hide) ],
-    [ Key.callback('👨‍💻 Claim Quiz & Questions »', 'claim_quiz_all', hide) ],
+    [ Key.callback('🌀 Claim Daily & Quiz & Questions »', 'claim_none_all', hide) ],
+    // [ Key.callback('👨‍💻 Claim Quiz & Questions »', 'claim_quiz_all', hide) ],
+    // [ Key.callback('💻 Claim quests »', 'claim_any_all', hide) ],
     // [ Key.callback('🐔 Claim Discord & Twitter quests »', 'claim_social_all', hide) ],
     [ Key.callback('🧙‍♂️ Batch Invite to communities»', 'invite', hide) ],
     [ Key.callback('👋 Batch Leave communities»', 'leave', hide) ],
@@ -68,18 +80,23 @@ const mainKeyboard = (ctx: BotContext) => {
 }
 
 const profileInfo = async (user, communities) => 
-  `Fetch *${user.name}* crew3 profile!
+  `Account name: *${user.name}*
 
-Twitter: ${user.twitterUsername ? `[${user.twitterUsername}](https://twitter.com/${user.twitterUsername})` : 'NONE'}
-Discord: ${user.discordHandle ? `[${user.discordHandle}](https://discord.com/app)` : 'NONE'}
+*Twitter:* ${user.twitterUsername ? `[${user.twitterUsername}](https://twitter.com/${user.twitterUsername})` : 'NONE'}
+*Discord:* ${user.discordHandle ? `[${user.discordHandle}](https://discord.com/app)` : 'NONE'}
 
-[${user.ethWallet}](https://debank.com/profile/${user.ethWallet})
+*Debank:* [${user.ethWallet}](https://debank.com/profile/${user.ethWallet})
+${Object.entries(user.addresses)
+  .filter(([k,v] : any) => v.toLowerCase() !== user.ethWallet.toLowerCase())
+  .map(([k,v]) => `*${k.charAt(0).toUpperCase() + k.slice(1)}:* \`${v}\``)
+  .join('\n')
+}
 
-Profile joined to *${communities.length} communities*: \`${communities.map(i => i.name).join('\`, \`')}\`
+*Profile joined to ${communities.length} communities*: \`${communities.map(i => i.name).join('\`, \`')}\`
 
 _Choose action:_
 `
-//NFT|DAO|Art|Music|Collectibles|Gaming|DeFi|Metaverse|Trading Cards|Infrastructure|Education|Startup|Protocol|Investing|DeSci|new
+
 const profileButtons = (user) => [
   [ Key.callback('Daily Connect »', `claim_none_${user.id}`), Key.callback('Quiz & questions »', `claim_quiz_${user.id}`) ],
   [ Key.callback('Discord »', `claim_discord_${user.id}`), Key.callback('Twitter »', `claim_twitter_${user.id}`) ],
@@ -111,13 +128,23 @@ const profileButtons = (user) => [
 const getCrewByMatch = (ctx, index = 1) =>
   new CrewProfile(ctx.session.accounts[ctx.match[index]].crew_headers)
 
-const getAccountName = (ctx, id) => ctx.session.accounts[id] ? (ctx.session.accounts[id].crew_user.name || ctx.session.accounts[id].crew_user.discordHandle || ctx.session.accounts[id].crew_user.twitterUsername) : 'NONE'
+const getAccountName = (ctx, id) => ctx.session.accounts[id] ? (ctx.session.accounts[id].crew_user.name || ctx.session.accounts[id].crew_user.discordHandle || ctx.session.accounts[id].crew_user.twitterUsername || 'Null') : 'NONE'
+
+const shuffle = (array) => array.sort(() => (Math.random() > .5) ? 1 : -1)
+
+const regexEthPrivateKey = /^[a-fA-F0-9]{64}/g
+const regexEthAddress = /^(0x[a-fA-F0-9]{40})$/
 
 // Main functions
-const claimQuestWithReport = async (ctx : BotContext, id, types = ['none'], answers) => {
-  ctx.answerCbQuery('Please wait...')
+const claimQuestWithReport = async (ctx : BotContext, id, types = ['none'], answers = {}) => {
   const crew = new CrewProfile(ctx.session.accounts[id].crew_headers)
   const userCommunities = await crew.getUserCommunities()
+  if (ctx.session.accounts[id].crew_user.name === null)
+    await crew.changeSettings(userCommunities[0].subdomain)
+
+  const user = await crew.getUser()
+  ctx.session.accounts[id].crew_user = user
+  
   if (userCommunities) {
     await ctx.reply('Claim processing, please wait logging message...', { parse_mode: 'Markdown' })
       .then(async (m) => {
@@ -151,14 +178,15 @@ const getCookieByPrivateKey = async (ctx, key) => {
             
             const crew = new CrewProfile(headers)
             const user = await crew.getUser()
-            
-            if (!user || user.accounts.length < 2)
+
+            if (!user || user.accounts.length < 1)
               return ctx.replyWithMarkdown(`Found address: _${signer.address}_\nLooks like he doesn't have a Crew3 profile or connected social accounts :(`)
 
             ctx.session.accounts[user.id] = {
               crew_user: user,
               crew_headers: headers
             }
+
             return true
           } else {
             return ctx.reply(`Something wrong - ${signer.address}`)
@@ -174,28 +202,34 @@ const getCookieByPrivateKey = async (ctx, key) => {
     })
   } catch (e) {
     console.log(e)
-    return ctx.reply(`Invalid private key!`) 
+    return ctx.reply(`Invalid private key! ${key}`) 
   }
 }
 
 // Batch join command
 const join = async (ctx, ids, link) => {
   let joined = 0
-  for (const id of ids) {
+  const answers = await google.readAnswers()
+  for (const id of shuffle(ids)) {
     if (joined < ctx.session.invite.max) {
       const crew = new CrewProfile(ctx.session.accounts[id].crew_headers)
       const state = await crew.joinByReferral(ctx.session.invite.subdomain, ctx.session.invite.code)
-      if (state.startsWith('Success')) joined++
-      console.log(state)
-      await ctx.reply(`*${getAccountName(ctx, id)}:* ${state}`, { parse_mode: 'Markdown' })
-      await delay(SHORT_TIMEOUT)
+      if (state.startsWith('Success')) {
+        joined++
+        await ctx.reply(`*${getAccountName(ctx, id)}:* ${state}\nAutostart claimiing...`, { parse_mode: 'Markdown' }).catch(e => console.log(e))
+        await claimQuestWithReport(ctx, id, ['none', 'text', 'telegram', 'quiz'], answers)
+        await delay(CLAIM_TIMEOUT)
+      } else {
+        await ctx.reply(`*${getAccountName(ctx, id)}:* ${state}`, { parse_mode: 'Markdown' }).catch(e => console.log(e))
+        await delay(SHORT_TIMEOUT)
+      }
     }
   }
-  return ctx.reply(`Joined ${joined} accounts complete!`)
+  return ctx.reply(`Joined ${joined} accounts complete!`).catch(e => console.log(e))
 }
 
 bot
-  .hears(/https:\/\/(.*).crew3.xyz\/invite\/([\S]+)\s?(\d?)/, async (ctx) => {
+  .hears(/https:\/\/(.*).crew3.xyz\/invite\/([\S]+)\s?(\d*)/, async (ctx) => {
     ctx.session.invite = {
       subdomain: ctx.match[1],
       code: ctx.match[2],
@@ -231,7 +265,7 @@ bot
       ],
     ]
     const actions = Keyboard.make(buttons).inline({ parse_mode: 'Markdown'})
-    return ctx.reply(`Leave community *${community.name}*?`, actions)
+    return ctx.reply(`Leave community *${community.name}*?`, actions).catch(e => {})
   })
   .action(/leave_(.+)/, async (ctx) => {
     for (const id of Object.keys(ctx.session.accounts)) {
@@ -270,28 +304,36 @@ bot.command('start', async (ctx) => main(ctx))
       const accounts = (await fs.readFile('accounts.csv', 'utf8')).split('\n')
       if (accounts.length > 0) {
         ctx.reply(`File \`accounts.csv\` parsed, found ${accounts.length} keys...`)
+        let added = 0
         for (const account of accounts) {
-          const address = account.split(';')[0]
-          if (!ctx.session.accounts[address])
-            await getCookieByPrivateKey(ctx, account.split(';')[1])
-          else ctx.reply(`${address} already added to bot session!`)
+          const address = account.split(/;|,/)[0].toLowerCase()
+          if (regexEthAddress.test(address) && Object.values(ctx.session.accounts).filter(account => account['crew_user'].ethWallet.toLowerCase() === address).length === 0) {
+            await getCookieByPrivateKey(ctx, account.split(/;|,/)[1])
+            await delay(SHORT_TIMEOUT)
+            added++
+          }
         }
+        if (added > 0)
+          return main(ctx, `Done key(s) processing!`)
       }
     } catch (e) {
       console.log(e)
     }
   })
-  .hears(/[a-fA-F0-9]{64}/g, async (ctx) => {
+  .hears(regexEthPrivateKey, async (ctx) => {
     await ctx.deleteMessage()
     await ctx.replyWithMarkdown(`*OK, start connecting...*\n_Private key was removed for security purposes!_`)
     for (const key of ctx.message.text.matchAll(/[a-fA-F0-9]{64}/g)) {
       await getCookieByPrivateKey(ctx, key)
+      await delay(SHORT_TIMEOUT)
     }
     return main(ctx, `Done key(s) processing!`)
   })
   .action('all_accounts', async (ctx) => {
     if (ctx.session.accounts) {
-      let buttons = Object.values(ctx.session.accounts).map(({ crew_user: account }: any) => [Key.callback(account.name || account.discordHandle || account.twitterUsername, 'account_' + account.id)])
+      let buttons = Object.values(ctx.session.accounts)
+        .filter(({ crew_user: account }: any) => account.accounts.length > 1)
+        .map(({ crew_user: account }: any) => [Key.callback(account.name || account.discordHandle || account.twitterUsername || 'Null', 'account_' + account.id)])
       buttons.push([Key.callback('« Main menu', 'main')])
       const accounts = Keyboard.make(buttons, {
         pattern: [2, 1],
@@ -305,6 +347,16 @@ bot.command('start', async (ctx) => main(ctx))
     } else {
       ctx.reply(`You don't have accounts`, )
     }
+  })
+  .hears(regexEthAddress, (ctx) => {
+    const accounts = Object.values(ctx.session.accounts).filter(account => account['crew_user'].ethWallet.toLowerCase() === ctx.match[1].toLowerCase())
+    if (accounts.length > 0)
+      ctx.reply(`Account with wallet \`${ctx.match[1]}\` finded!`, Keyboard
+      .make([[
+        Key.callback('« Main menu', `main`),
+        Key.callback('Account »', `account_${accounts[0]['crew_user'].id}`)
+      ]]).inline({ parse_mode: 'Markdown' }))
+    else main(ctx, `Account not finded :(`)
   })
   .action(/account_(.+)/, async (ctx) => {
     const crew = await getCrewByMatch(ctx, 1)
@@ -322,11 +374,8 @@ bot.command('start', async (ctx) => main(ctx))
     return ctx.reply(`Answers are recorded in a Google SpreadSheets: ${url}`)
   })
   .action('main', async (ctx) => main(ctx))
-  .action('invite', async (ctx) => ctx.replyWithMarkdown(`Send invite link to bot, you can setup how many invitesmust be, example:
-  
-*[invite link from crew3]* *[number of invites]*
-  `, { disable_web_page_preview: true }))
-  .action('leave', (ctx) => ctx.replyWithMarkdown('Send to bot command /leave *[subdomain]*'))
+  .action('invite', async (ctx) => ctx.reply(`Send invite link to bot, you can setup how many invitesmust be, example:\n\n*[invite link from crew3]* *[number of invites]*`, { disable_web_page_preview: true, parse_mode: 'Markdown' }))
+  .action('leave', (ctx) => ctx.reply('Send to bot command /leave *[subdomain or name]*', { parse_mode: 'Markdown' }))
   .action(/level_(.+)/, async (ctx) => {
     const crew = getCrewByMatch(ctx, 1)
     const user = await crew.getUser()
@@ -360,15 +409,16 @@ bot.command('start', async (ctx) => main(ctx))
     const crew = getCrewByMatch(ctx, 2)
     const user = await crew.getUser()
     const joined = (await crew.getUserCommunities()).map(community => community.name)
-    const communities = await crew.getCommunities(ctx.match[1], 1, 0)
+    const communities = await crew.getCommunities(ctx.match[1], 3, 0)
     for (const community of communities) {
       const message = await crew.communityMessage(community, user)
+
       await ctx.reply(message, Keyboard
         .make([[ Key.callback('« Leave community', `leave_${user.id}`, !joined.includes(community.name)) ],
           [ Key.callback('Join »', `join_${user.id}`, joined.includes(community.name)) ],
           [
             Key.callback('« Main menu', `main`),
-            Key.callback('Account »', `account_${ctx.match[1]}`)
+            Key.callback('Account »', `account_${ctx.match[2]}`)
           ]
         ])
         .inline({
@@ -377,14 +427,46 @@ bot.command('start', async (ctx) => main(ctx))
         }))
     }
   })
-  .action(/claim_([none|quiz]+)_(.+)/, async (ctx) => {
+  .hears(/new (\d*) (\d*)/, async (ctx) => {
+    const crew = new CrewProfile(headerGenerator.getHeaders())
+    const communities = await crew.getCommunities('new', parseInt(ctx.match[1]) || 3, parseInt(ctx.match[2]) || 0)
+    for (const community of communities) {
+      const quests = crew.getRoleQuests(await crew.getAllQuests(community.subdomain))
+      for (const quest of quests)
+        console.log(community.subdomain, quest.reward, quest.validationData, quest.condition)
+      const message = await crew.communityMessage(community)
+      await ctx.reply(message, { parse_mode: 'Markdown', disable_web_page_preview: true })
+    }
+  })
+  .command('discords', async (ctx) => {
+    ctx.reply(Object.values(ctx.session.accounts)
+      .filter(({ crew_user: account }: any) => account.discordHandle)
+      .map(({ crew_user: account }: any) => account.discordHandle)
+      .join('\n'),
+    { parse_mode: 'Markdown' })
+  })
+  .command('twitters', async (ctx) => {
+    ctx.reply(Object.values(ctx.session.accounts)
+      .filter(({ crew_user: account }: any) => account.twitterUsername)
+      .map(({ crew_user: account }: any) => `https://twitter.com/${account.twitterUsername}`)
+      .join('\n'),
+    { parse_mode: 'Markdown' })
+  })
+  .action(/claim_([none|quiz|any]+)_(.+)/, async (ctx) => {
     const ids = ctx.match[2] !== 'all'
       ? [ ctx.match[2] ]
       : Object.keys(ctx.session.accounts)
     const answers = await google.readAnswers()
+    const type = ctx.match[1] === 'quiz'
+      ? ['quiz', 'text']
+      : ctx.match[1] === 'none'
+        ? ['none', 'telegram']
+        : ['none', 'telegram', 'quiz', 'text']
 
-    for (const id of ids)
-      await claimQuestWithReport(ctx, id, ctx.match[1] === 'quiz' ? ['quiz', 'text'] : ['none'], answers)
+    for (const id of shuffle(ids)) {
+      claimQuestWithReport(ctx, id, type, answers)
+      await delay(CLAIM_TIMEOUT)
+    }
 
     return
   })
@@ -392,12 +474,11 @@ bot.command('start', async (ctx) => main(ctx))
     const ids = ctx.match[2] !== 'all'
       ? [ ctx.match[2] ]
       : Object.keys(ctx.session.accounts)
-    const answers = await google.readAnswers()
 
-    for (const id of ids)
-      await claimQuestWithReport(ctx, id, ctx.match[1] === 'social' ? ['twitter', 'discord'] : [ ctx.match[1] ], answers)
+    for (const id of shuffle(ids))
+      await claimQuestWithReport(ctx, id, ctx.match[1] === 'social' ? ['twitter', 'discord'] : [ ctx.match[1] ])
 
-    return ctx.reply('Wait for next update for auto-task, now only auto-claim supported.')
+    return ctx.reply('Wait for next update for auto-task(join, follow or other social tasks). Now only auto-claim helper supported.')
   })
   .action(/delete_(.+)/, async (ctx) => {
     const address = ctx.session.accounts[ctx.match[1]].crew_user.ethWallet
@@ -430,11 +511,8 @@ bot.on('message', (ctx) => main(ctx))
 
 bot.catch((e, ctx) => {
   console.log('Error', e)
-  ctx.reply(JSON.stringify(e))
+  ctx.reply(`Some error, please see logs in console...`)
 })
 
-bot.launch()
-  .then(async () => {
-    //bot.telegram.sendMessage(ADMIN, 'Bot launched')
-  })
-  .catch(e => console.log(e))
+bot.launch().catch(e => console.log(e))
+console.log('Telegram bot succsessfully launched! Write any message or /start to your bot in telegram...')

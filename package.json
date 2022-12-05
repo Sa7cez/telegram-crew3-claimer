@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "start": "nodemon bot.ts --ignore '*.json'",
+    "start": "npx ts-node bot.ts",
     "serve": "nodemon bot.ts --ignore '*.json'"
   },
   "keywords": [],

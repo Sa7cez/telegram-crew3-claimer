@@ -452,9 +452,9 @@ bot.command('start', async (ctx) => main(ctx))
     const ids = ctx.match[2] === 'all'
       ? Object.keys(ctx.session.accounts)
       : ctx.match[2] === 'socials'
-        ? Object.keys(Object.values(ctx.session.accounts).filter(({ crew_user: account }: any) => account.accounts.length > 1))
+        ? Object.values(ctx.session.accounts).filter(({ crew_user: account }: any) => account.accounts.length > 1).map(user => user['crew_user'].id)
         : [ ctx.match[2] ]
-
+    
     const answers = await google.readAnswers()
     const type = ctx.match[1] === 'quiz'
       ? ['quiz', 'text']

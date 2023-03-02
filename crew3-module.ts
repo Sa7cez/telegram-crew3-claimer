@@ -123,9 +123,10 @@ export class CrewProfile {
   joinCommunities = async (communities, timeout = 2000) => {
     const report = [`Start join to ${communities.length} communities:`]
     for(const community of communities) {
-      if (community.visibility !== 'private')
-        await this.joinCommunity(community)
-      else report.push(`${community.name} is private! Can't subscribe to it.`)
+      if (community.visibility !== 'private') {
+        const res = await this.joinCommunity(community.subdomain)
+        if (res) report.push(`Joined ${community.name}.`); else report.push(`Couldn't join ${community.name}.`)
+      } else report.push(`${community.name} is private! Can't subscribe to it.`)
       await sleep(timeout)
     }
     return report
@@ -148,7 +149,7 @@ export class CrewProfile {
    * @returns array of communities
    */
   communityMessage = async (community, user = null) => {
-    const stats = user ? await this.getUserCommunityStats(community, user) : null
+    const stats = user ? await this.getUserCommunityStats(community, user) : null;
     return `*${community.name}*${community.description ? `\n\n${community.description}` : ''}
 
 *Crew3:* [https://${community.subdomain}.crew3.xyz](https://${community.subdomain}.crew3.xyz)
@@ -167,27 +168,27 @@ ${stats ? `
 Invites: *${stats.invites}* | Level: *${stats.level}*
 Leaderboard rank: *${stats.rank}*
 Claimed XP: *${stats.xp}*` : ''}`}
-  
+
   /**
    * Join single community without invite link
-   * @param community from API
+   * @param subdomain from API
    * @returns array of communities
    */
-  joinCommunity = async (community) => 
+  joinCommunity = async (subdomain) =>
     this.crew3
-      .post(`communities/${community.subdomain}/members`)
+      .post(`communities/${subdomain}/members`)
       .then(async (r) => true)
       .catch(e => {
         console.log(e)
         return false
       })
-      
+
   /**
    * Search first community matched keyword
    * @param keyword for search
    * @returns array of communities
    */
-  searchCommunity = async (keyword) => 
+  searchCommunity = async (keyword) =>
     this.crew3
       .get(`communities/search?${new URLSearchParams({ search: keyword }).toString()}&limit=10`)
       .then(async (r) => r.data[0])
@@ -195,7 +196,7 @@ Claimed XP: *${stats.xp}*` : ''}`}
         console.log(e)
         return false
       })
-  
+
   /**
    * Replace headers for community requests
    * @param subdomain from API
@@ -221,7 +222,7 @@ Claimed XP: *${stats.xp}*` : ''}`}
    * @param subdomain from API
    * @returns array of communities
    */
-  leaveCommunity = async (community, user) => 
+  leaveCommunity = async (community, user) =>
     this.crew3
       .delete(`communities/${community.subdomain ? community.subdomain : community}/members/${user.id}`)
       .then(() => 'success')
@@ -244,7 +245,9 @@ Claimed XP: *${stats.xp}*` : ''}`}
 
   /**
    * Get Claimed answers of community
-   * @param subdomain from API
+   * @param community from API
+   * @param page
+   * @param pageSize
    * @returns true after processing
    */
   getCommunityAnswers = (community, page = 0, pageSize = 10) => {
@@ -252,8 +255,8 @@ Claimed XP: *${stats.xp}*` : ''}`}
       .get(`communities/${community.subdomain}/users/me/notifications?page=${page}&page_size=${pageSize}`)
       .then(r => {
         const answers = r.data.notifications
-          .filter(note => 
-            note.status === 'success' && 
+          .filter(note =>
+            note.status === 'success' &&
             note.type === 'claim' &&
             ['quiz', 'text'].includes(note.events[0].valueType)
           )
@@ -295,7 +298,7 @@ Claimed XP: *${stats.xp}*` : ''}`}
         quests.push(quest)
     return quests
   }
-  
+
   // Get unlocked and available quests
   getUnlockedQuests = (quests) => quests.filter((item) => item.unlocked && !item.inReview && item.open)
 
@@ -368,7 +371,7 @@ Claimed XP: *${stats.xp}*` : ''}`}
   }
 
   /**
-   * Get questsfor communities by submission type
+   * Get quests for communities by submission type
    * @param communities list from API
    * @returns array of links to join
    */

@@ -79,7 +79,7 @@ const mainKeyboard = (ctx: BotContext) => {
   ]
 }
 
-const profileInfo = async (user, communities) => 
+const profileInfo = async (user, communities) =>
   `Account name: *${user.name}*
 
 *Twitter:* ${user.twitterUsername ? `[${user.twitterUsername}](https://twitter.com/${user.twitterUsername})` : 'NONE'}
@@ -101,23 +101,25 @@ const profileButtons = (user) => [
   [ Key.callback('Daily Connect »', `claim_none_${user.id}`), Key.callback('Quiz & questions »', `claim_quiz_${user.id}`) ],
   [ Key.callback('Discord »', `claim_discord_${user.id}`), Key.callback('Twitter »', `claim_twitter_${user.id}`) ],
   [
-    Key.callback('Rank and Level »', `level_${user.id}`), 
-    Key.callback('Get all invites »', `invites_${user.id}`) 
-  ], 
-  [
-    Key.callback('Share Quiz answers »', `answers_${user.id}`) 
+    Key.callback('Rank and Level »', `level_${user.id}`),
+    Key.callback('Get all invites »', `invites_${user.id}`)
   ],
-  [ 
-    Key.callback('New', `communities_new_${user.id}`), 
+  [
+    Key.callback('Share Quiz answers »', `answers_${user.id}`)
+  ],
+  [
+    Key.callback('Popular 🔥', `communities_popular_${user.id}`),
+    Key.callback('New', `communities_new_${user.id}`),
     Key.callback('Infrastructure', `communities_Infrastructure_${user.id}`),
     Key.callback('Protocol', `communities_Protocol_${user.id}`),
   ],
-  [ 
+  [
+    Key.callback('Top 🏆', `communities_all_${user.id}`),
     Key.callback(`Startup`, `communities_Startup_${user.id}`),
     Key.callback('NFT', `communities_NFT_${user.id}`),
     Key.callback('Education', `communities_Education_${user.id}`),
-  ], 
-  [ 
+  ],
+  [
     Key.callback('« Back to accounts', `all_accounts`),
     Key.callback('! Remove profile !', `delete_${user.id}`)
   ],

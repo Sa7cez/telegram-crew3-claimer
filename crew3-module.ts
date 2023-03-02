@@ -45,7 +45,7 @@ export class CrewProfile {
    */
   getUserCommunities = async () => await this.crew3
     .get('users/me/communities')
-    .then(r => r.data)
+    .then(r => r.data.communities)
     .catch(e => {
       console.log('User not connected to Crew3', e?.response?.data)
       return []
@@ -158,7 +158,7 @@ export class CrewProfile {
 *Opensea:* [${community.opensea}](${community.opensea || 'NONE'})
 
 Blockchain: *${community.blockchain.toUpperCase()}*
-Categories: *${community.categories.join(', ')}*
+${community.sector ? `Sector: *${community.sector.toUpperCase()}*` : ''}
 
 Community rank: *${community.rank}*
 Quests: *${community.quests}*

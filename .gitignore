@@ -2,6 +2,7 @@
 node_modules
 *.txt
 *.csv
+google.json
 sessions.json
 
 # local env files

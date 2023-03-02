@@ -506,7 +506,7 @@ bot.command('start', async (ctx) => main(ctx))
   })
 
 // Any other message
-bot.on('message', (ctx) => main(ctx))
+bot.on('message', (ctx) => ctx.reply(`Command not recognized`))
 
 bot.catch((e, ctx) => {
   console.log('Error', e)

@@ -125,7 +125,7 @@ export class CrewProfile {
     for(const community of communities) {
       if (community.visibility !== 'private') {
         const res = await this.joinCommunity(community.subdomain)
-        if (res) report.push(`Joined ${community.name}.`); else report.push(`Couldn't join ${community.name}.`)
+        if (res) report.push(`Community ${community.name} was joined successfully ✅.`); else report.push(`Couldn't join ${community.name} ❌.`)
       } else report.push(`${community.name} is private! Can't subscribe to it.`)
       await sleep(timeout)
     }

@@ -271,8 +271,11 @@ bot
   })
   .action(new RegExp("join_communities_" + COMMUNITY_CATEGORIES_REGEX), async (ctx) => {
     const crew = getCrewByMatch(ctx, 2)
-    const communities = await crew.getCommunities(ctx.match[1], COMMUNITY_MAX_PAGE_NUMBER, 0)
-    const report = await crew.joinCommunities(communities);
+    const communities = await crew.getCommunities(ctx.match[1], COMMUNITY_MAX_PAGE_NUMBER, 0);
+    const userCommunitiesSubdomains = (await crew.getUserCommunities()).map((c) => c.subdomain);
+    const communitiesToJoin = communities.filter((c) => !userCommunitiesSubdomains.includes(c.subdomain));
+    await ctx.reply(`Found *${communitiesToJoin.length}* out of *${communities.length}* communities that are still not joined.`);
+    const report = await crew.joinCommunities(communitiesToJoin);
     await ctx.reply(report.join("\n"))
   })
   .action(/join_(.+)/, async (ctx) => {
@@ -454,8 +457,8 @@ bot.command('start', async (ctx) => main(ctx))
         }))
     }
 
-    await ctx.reply(`Want to join all communities from ${ctx.match[1]} ?`, Keyboard
-        .make([[ Key.callback('Join all communities »', `join_communities_${ctx.match[1]}_${ctx.match[2]}`) ],
+    await ctx.reply(`Want to join ${communities.length} communities from ${ctx.match[1]} category ?`, Keyboard
+        .make([[ Key.callback(`Join ${communities.length} "${ctx.match[1]}" communities »`, `join_communities_${ctx.match[1]}_${ctx.match[2]}`) ],
           [
             Key.callback('« Main menu', `main`),
             Key.callback('Account »', `account_${ctx.match[2]}`)

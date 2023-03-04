@@ -1,5 +1,6 @@
-import { GoogleSpreadsheet } from "@noloco/google-spreadsheet"
-import creds from './google.json'
+import { GoogleSpreadsheet } from "@noloco/google-spreadsheet";
+import creds from './google.json';
+
 
 const URL = process.env.ANSWERS || 'https://docs.google.com/spreadsheets/d/1Dk4qG6d7kjeK_iFbmxJ8Z2gGQRHZ_lsgdqwLiUxXMlg/edit#gid=0'
 const googleRegex = /\/([\w-_]{15,})\/(.*?gid=(\d+))?/
@@ -38,32 +39,41 @@ export const writeAnswers = async (data, url = URL) => {
   return url
 }
 
-// Read quest answers from Google Spreadsheet
-export const readAnswers = async (url = URL) => {
-  const doc = new GoogleSpreadsheet(googleRegex.exec(url)[1])
-  await doc.useServiceAccountAuth(creds)
-  await doc.setRetryOptions(2, 60000)
-  await doc.loadInfo()
 
-  let answers = {}
-  for (let i = 0; i < doc.sheetCount; i++) {
-    let sheet = await doc.sheetsByIndex[i]
-    answers[sheet.title] = {}
-    const rows = await sheet.getRows()
-    for(const row of rows) {
-      answers[sheet.title][row.question] = row.answer
+// Read quest answers from Google Spreadsheet
+export const readAnswers = async (redisClient, url = URL) => {
+  const cacheResults = await redisClient.get(url);
+  let answers;
+
+  if (cacheResults) {
+    answers = JSON.parse(cacheResults);
+  } else {
+    const doc = new GoogleSpreadsheet(googleRegex.exec(url)[1])
+    await doc.useServiceAccountAuth(creds)
+    await doc.setRetryOptions(2, 60000)
+    await doc.loadInfo()
+
+    answers = {}
+    for (let i = 0; i < doc.sheetCount; i++) {
+      let sheet = await doc.sheetsByIndex[i]
+      answers[sheet.title] = {}
+      const rows = await sheet.getRows()
+      for(const row of rows) {
+        answers[sheet.title][row.question] = row.answer
+      }
     }
+    await redisClient.set(url, JSON.stringify(answers));
   }
-  return answers
+  return answers;
 }
 
-const checkConnection = async () => {
+const checkConnection = async (redisClient) => {
   try {
-    const answers = await readAnswers()
-    console.log(`Google OK. Database communities: ${Object.keys(answers).join(' | ')}`)
+    const answers = await readAnswers(redisClient);
+    console.log(`Google OK. Database communities: ${Object.keys(answers).join(' | ')}`);
   } catch (e) {
     console.log(`Google connection error! Please check provided URL visibility or use default URL.`)
   }
 }
 
-checkConnection()
+// checkConnection()

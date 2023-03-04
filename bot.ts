@@ -14,6 +14,8 @@ import delay from 'delay'
 import axios from 'axios'
 import { HeaderGenerator } from 'header-generator'
 
+import { createClient } from 'redis';
+
 const headerGenerator = new HeaderGenerator({
   browserListQuery: 'last 5 chrome versions',
   operatingSystems: ['windows', 'macos', 'ios', 'android']
@@ -214,7 +216,7 @@ const getCookieByPrivateKey = async (ctx, key) => {
 // Batch join command
 const join = async (ctx, ids, link) => {
   let joined = 0
-  const answers = await google.readAnswers()
+  const answers = await google.readAnswers(redisClient)
   for (const id of shuffle(ids)) {
     if (joined < ctx.session.invite.max) {
       const crew = new CrewProfile(ctx.session.accounts[id].crew_headers)
@@ -501,7 +503,7 @@ bot.command('start', async (ctx) => main(ctx))
         ? Object.values(ctx.session.accounts).filter(({ crew_user: account }: any) => account.accounts.length > 1).map(user => user['crew_user'].id)
         : [ ctx.match[2] ]
 
-    const answers = await google.readAnswers()
+    const answers = await google.readAnswers(redisClient)
     const type = ctx.match[1] === 'quiz'
       ? ['quiz', 'text']
       : ctx.match[1] === 'none'
@@ -562,6 +564,16 @@ bot.catch((e, ctx) => {
   console.log('Error', e)
   ctx.reply(`Some error, please see logs in console...`)
 })
+
+let redisClient;
+
+(async () => {
+  redisClient = createClient();
+
+  redisClient.on("error", (error) => console.error(`Error : ${error}`));
+
+  await redisClient.connect();
+})();
 
 bot.launch().catch(e => console.log(e))
 console.log('Telegram bot successfully launched! Write any message or /start to your bot in telegram...')

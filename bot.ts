@@ -531,8 +531,10 @@ bot.command('start', async (ctx) => main(ctx))
     return main(ctx, `Account \`${address}\` deleted, to recover send it private key again`)
   })
   .hears(/search (.*)/, async (ctx) => {
-    const crew = new CrewProfile(headerGenerator.getHeaders())
-    const community = await crew.searchCommunity(ctx.match[1])
+    const crew = new CrewProfile(headerGenerator.getHeaders());
+    const community = await crew.searchCommunity(ctx.match[1]);
+    const joined = (await crew.getUserCommunities()).map(community => community.name);
+    const userHasJoinedCommunity = joined.includes(community.name);
     if (community) {
       ctx.session.invite = {
         subdomain: community.subdomain,
@@ -542,7 +544,9 @@ bot.command('start', async (ctx) => main(ctx))
       const message = await crew.communityMessage(community)
       await ctx.reply(message, Keyboard
         .make([
-          [ Key.callback('Join »', `join_${community.subdomain}`, !ctx.session.currentProfile) ],
+          [ Key.callback('Join »', `join_${community.subdomain}`, !userHasJoinedCommunity) ],
+          [ Key.callback('Leave »', `join_${community.subdomain}`, userHasJoinedCommunity) ],
+          [ Key.callback('Claim from all accounts »', `claim_community_any_all_${community.subdomain}`, !ctx.session.currentProfile) ],
           [ Key.callback('« Main menu', `main`)]
         ]).inline({
           parse_mode: 'Markdown',

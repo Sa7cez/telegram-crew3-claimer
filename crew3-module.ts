@@ -190,8 +190,8 @@ Claimed XP: *${stats.xp}*` : ''}`}
    */
   searchCommunity = async (keyword) =>
     this.crew3
-      .get(`communities/search?${new URLSearchParams({ search: keyword }).toString()}&limit=10`)
-      .then(async (r) => r.data[0])
+      .get(`communities?${new URLSearchParams({ search: keyword }).toString()}&limit=10`)
+      .then(r => r.data.communities[0])
       .catch(e => {
         console.log(e)
         return false

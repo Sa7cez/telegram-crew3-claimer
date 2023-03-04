@@ -145,7 +145,7 @@ export class CrewProfile {
   /**
    * Notify message for telegram bot
    * @param community from API
-   * @param project for repeat messages
+   * @param user from API
    * @returns array of communities
    */
   communityMessage = async (community, user = null) => {
@@ -167,7 +167,8 @@ Required: *${Object.entries(community.requiredFields).filter(([key, value]) => v
 ${stats ? `
 Invites: *${stats.invites}* | Level: *${stats.level}*
 Leaderboard rank: *${stats.rank}*
-Claimed XP: *${stats.xp}*` : ''}`}
+Claimed XP: *${stats.xp}*` : ''}
+`}
 
   /**
    * Join single community without invite link
@@ -403,6 +404,27 @@ Claimed XP: *${stats.xp}*` : ''}`}
   }
 
   /**
+   * Get quest display text
+   * @param quest from API
+   * @returns string
+   */
+  getQuestDisplayText = (quest) => {
+     const getTextFromQuestDescription = (x) => {
+       if (x.content)
+         return x.content.map((x) => x.type === "text" ? x.text : getTextFromQuestDescription(x)).flat().join("");
+       else {
+         return "";
+       }
+     }
+
+     return `Name: *${quest.name}*
+Description:
+_${getTextFromQuestDescription(quest.description)}_
+Claim reward [here](https://crew3.xyz/c/mantle/questboard/${quest.id})
+`
+   }
+
+  /**
    * Claim quest for subdomain
    * @param subdomain from API
    * @param quest from API
@@ -487,33 +509,51 @@ Claimed XP: *${stats.xp}*` : ''}`}
   /**
    * Claim all quests by type
    * @param communities from API
-   * @param answer form answers list, nessesary for text/quiz/url/image types of quests
+   * @param answers form answers list, nessesary for text/quiz/url/image types of quests
    * @param timeout to avoid account ban
    * @returns array of logs
    */
   claimQuestsByType = async (communities, types = ['none'], timeout = 2000, answers) => {
     const report = [`Start claim *${types.join(', ')}* quests for ${communities.length} communities:`]
     for (const community of communities) {
-      const all = await this.getAllQuests(community.subdomain)
-      const unlocked = this.getUnlockedQuests(all)
-      const quests = unlocked.filter(item => types.includes(item.submissionType))
-      const communityName = community.name.replace(/[^a-zA-Z0-9 ]/, '')
-      if (quests.length > 0)
-        report.push(`*${community.name}* \`${community.subdomain}\` (${quests.length} quests):`)
-      for (const quest of quests) {
-        let answer
-        if (['quiz', 'text', 'url', 'image'].includes(quest.submissionType) && answers[communityName]) {
-          answer = answers[communityName][quest.name.trim()]
-          if (answer)
-            report.push(' - ' + await this.claimQuest(community.subdomain, quest, answer ? answer : null))
-        } else {
-          report.push(' - ' + await this.claimQuest(community.subdomain, quest))
-        }
-      }
-      await sleep(timeout)
+      report.concat(await this.claimQuestsByCommunity(community, types, timeout, answers));
     }
+    console.log(report);
+    return report;
+  }
+
+  /**
+   * Claim all quests by subdomain
+   * @param community from API
+   * @param answers form answers list, nessesary for text/quiz/url/image types of quests
+   * @param types
+   * @param timeout to avoid account ban
+   * @returns array of logs
+   */
+  claimQuestsByCommunity = async (community, types = ['none'], timeout = 2000, answers) => {
+    const report = [`Start claim *${types.join(', ')}* quests for community *${community.name}*:`]
+    const all = await this.getAllQuests(community.subdomain)
+    const unlocked = this.getUnlockedQuests(all)
+    const quests = unlocked.filter(item => types.includes(item.submissionType))
+    const communityName = community.name.replace(/[^a-zA-Z0-9 ]/, '')
+    if (quests.length > 0)
+      report.push(`*${community.name}* \`${community.subdomain}\` (${quests.length} quests):`)
+    for (const quest of quests) {
+      if (['quiz', 'text', 'url', 'image'].includes(quest.submissionType) && answers[communityName]) {
+        const answer = answers[communityName][quest.name.trim()];
+        if (answer) {
+          report.push(' - ' + await this.claimQuest(community.subdomain, quest, answer ? answer : null))
+        } else {
+          report.push(` - Answer not found for following quest:\n${this.getQuestDisplayText(quest)}`)
+        }
+      } else {
+        report.push(' - ' + await this.claimQuest(community.subdomain, quest))
+      }
+    }
+    await sleep(timeout)
+    console.log(report);
     return report.length > 1
-      ? report
-      : [`No claimable quests with type *"${types.join(',')}"* in ${communities.length} communities!`]
+        ? report
+        : [`No claimable quests with type *"${types.join(',')}"* for community *${community.name}*!`]
   }
 }

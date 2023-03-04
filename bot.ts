@@ -517,6 +517,34 @@ bot.command('start', async (ctx) => main(ctx))
 
     return
   })
+    .action(/claim_community_([none|quiz|any]+)_(.+)_(.+)/, async (ctx) => {
+      const ids = ctx.match[2] === 'all'
+          ? Object.keys(ctx.session.accounts)
+          : ctx.match[2] === 'socials'
+              ? Object.values(ctx.session.accounts).filter(({ crew_user: account }: any) => account.accounts.length > 1).map(user => user['crew_user'].id)
+              : [ ctx.match[2] ]
+
+      const answers = await google.readAnswers(redisClient)
+      const type = ctx.match[1] === 'quiz'
+          ? ['quiz', 'text']
+          : ctx.match[1] === 'none'
+              ? ['none', 'telegram']
+              : ['none', 'telegram', 'quiz', 'text']
+
+      for (const id of shuffle(ids)) {
+        const crew = new CrewProfile(ctx.session.accounts[id].crew_headers)
+        const community = await crew.searchCommunity(ctx.match[3]);
+
+        await ctx.reply('Claim processing, please wait logging message...', { parse_mode: 'Markdown' })
+            .then(async (m) => {
+              const report = await crew.claimQuestsByCommunity(community, type, CLAIM_TIMEOUT, answers)
+              await bot.telegram.editMessageText(ctx.from.id, m.message_id, m.message_id.toString(), `*${getAccountName(ctx, id)}:*\n${report.join('\n')}`, Keyboard
+                  .make([[ Key.callback('« Main menu', 'main'), Key.callback('To account »', `account_${id}`) ]])
+                  .inline({ parse_mode: 'Markdown' })).catch(e => ctx.reply('Report too long...'))
+            })
+      }
+
+    })
   .action(/claim_([discord|twitter|social]+)_(.+)/, async (ctx) => {
     const ids = ctx.match[2] !== 'all'
       ? [ ctx.match[2] ]

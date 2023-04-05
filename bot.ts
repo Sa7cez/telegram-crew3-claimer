@@ -166,6 +166,7 @@ const getCookieByPrivateKey = async (ctx, key) => {
       .post("authentification/wallet/nonce", { address: signer.address })
       .then(async (r) => {
         return api.post('authentification/wallet/verify-signature', {
+          network: 1,
           sessionId: r.data.id,
           signature: await signer.signMessage(r.data.nonce)
         }).then(async (r) => {
